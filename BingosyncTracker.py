@@ -1,5 +1,6 @@
 # start listening for score updates in bingosync room and output them to .txt files, spawned from interface
-# takes 2 arguments: player1_color, player2_color
+# also standarises OBS layout creation process
+# takes 1-10 arguments: player1_color, player2_color...
 
 import time, sys, shutil
 import signal
@@ -47,7 +48,7 @@ def get_selector(this_color):
 def get_output_path(this_player):
     """Returns .txt output path for player"""
 
-    return bingosync_path.joinpath("Scores", f"p{this_player}.txt")
+    return bingosync_path.joinpath("Scores", f"p{this_player + 1}.txt")
 
 
 
@@ -55,7 +56,7 @@ def output(this_player, value):
     """outputs score for player into a txt"""
 
     with open(get_output_path(this_player), "w+") as txt_file:
-       txt_file.write(str(value))
+       txt_file.write(value)
        print(f"  * P{this_player + 1} score updated to {value}")
        txt_file.close()
 
@@ -82,7 +83,7 @@ def read_sync_score(this_player):
 
 
 def full_read(player_count):
-    """# reads every score and updates them if different"""
+    """Reads every score and updates them if different"""
 
     for ind,score in enumerate(scores):
         temp_score = read_sync_score(ind)
@@ -114,7 +115,7 @@ def initialize_driver():
        driver.set_script_timeout(1800)
        return driver
     except Exception:
-       print ("Both Firefox and Chrome failed to launch (Are you missing chrome/geckodriver?)")
+       print ("Both Firefox and Chrome failed to launch (Are you missing chromedriver/geckodriver?)")
        return None
 
 #TODO videos
@@ -133,9 +134,9 @@ def generate_OBS_images(background_image):
         shutil.copy(obs_path.joinpath("Colours", f"{background_image}.png"), path)
         return True
     except FileNotFoundError as e:
-        print("A file wasn't found")
+        print("A file wasn't found. The exception text is below.")
         print(e)
-        delete_copies()
+        print("Note that the listener is still running")
         return False
 
 def delete_copies():
@@ -147,6 +148,7 @@ def delete_copies():
 
 def ctrlC_handler(signum, frame):
     print("\n >> Ending driver")
+    print("Note that the image copies made won't be deleted")
     driver.quit()
     exit(-1)
 
@@ -201,7 +203,7 @@ def Main():
 
     #OBS input section
     bg_image = input(">> Please introduce the name of the image you wish to use as OBS background: ")
-    track_lines = input("Is the row/line counter relevant to the score? [Y/N]: ").lower() == "y"
+    track_lines = input(">> Is the row/line counter relevant to the score? [Y/N]: ").lower() == "y"
     # input room data
     room_nick   = "BingoTracker"
     room_url    = input(">>  Input room URL: ")
@@ -213,9 +215,6 @@ def Main():
 
     #set up for exiting the driver in case of CTRL+C interrupt
     signal.signal(signal.SIGINT, ctrlC_handler)
-
-    #Navigate to bingosync room
-
 
     if not attempt_login(driver,room_url, room_pw):
         exit(-1)
@@ -229,9 +228,7 @@ def Main():
     # update scores with a full read (in case of tracker disconnect)
     full_read(len(colors))
 
-
-    if not generate_OBS_images(bg_image):
-        exit(-1)
+    generate_OBS_images(bg_image)
 
     while True:
         try:
