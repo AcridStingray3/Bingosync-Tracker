@@ -20,21 +20,17 @@ js_script = """// callback function argument
                 })
             """
 
-track_lines = False
 #List with the colors that are being used currently
-colors = []
 
 #List with current scores
-scores = []
 
 #Paths.
 executing_path = Path.cwd()
 obs_path = executing_path.joinpath("OBS")
 #Save the paths for deletion 
 obs_images_paths = []
-
 bingosync_path = executing_path.joinpath("Bingosync")
-driver = None
+
 
 
 
@@ -57,45 +53,42 @@ def output(this_player, value):
 
     with open(get_output_path(this_player), "w+") as txt_file:
        txt_file.write(value)
-       print(f"  * P{this_player + 1} score updated to {value}")
+       print(f"     * P{this_player + 1} score updated to {value}")
        txt_file.close()
 
 
-def update_score(this_player, value):
+def update_score(this_player, value, scores):
     """Updates score of player this_player to value"""
     scores[this_player] = value
     output(this_player, value)
 
 
-def read_sync_score(this_player):
+def read_bingosync_score(driver, color, old_score, track_lines):
     """Attempts to read out bingosync score for this_player, returns old score if player can't be found"""
-    this_score = scores[this_player]
-    this_color = colors[this_player]
+
     try:
         # give out current value
-        value = driver.find_element_by_css_selector(get_selector(this_color)).find_element_by_class_name("squarecounter").get_attribute("innerHTML")
+        value = driver.find_element_by_css_selector(get_selector(color)).find_element_by_class_name("squarecounter").get_attribute("innerHTML")
         if track_lines:
-            value += driver.find_element_by_css_selector(get_selector(this_color)).find_element_by_class_name("rowcounter").get_attribute("innerHTML")
+            value += driver.find_element_by_css_selector(get_selector(color)).find_element_by_class_name("rowcounter").get_attribute("innerHTML")
         return value
     except NoSuchElementException:
         # default condition: return old value
-        return this_score
+        return old_score
 
 
-def full_read(player_count):
+def full_read(driver, scores, colors, track_lines):
     """Reads every score and updates them if different"""
 
-    for ind,score in enumerate(scores):
-        temp_score = read_sync_score(ind)
+    for ind, (color, score) in enumerate(zip(colors, scores)):
+        temp_score = read_bingosync_score(driver, color, score, track_lines)
         if score != temp_score:
-            update_score(ind,temp_score)
+            update_score(ind, temp_score, scores)
 
 def initialize_driver():
     """Opens a web browser to interact with bingosync with. Prefers Firefox to Chrome, dies if neither is available"""
 
     #attempt firefox
-    global driver;
-
     try: 
         opt = webdriver.FirefoxOptions()
         opt.add_argument('-private')
@@ -110,7 +103,6 @@ def initialize_driver():
        opt = webdriver.ChromeOptions()
        opt.add_argument('--ignore-certificate-errors')
        opt.add_argument('--incognito')
-       print(str(bingosync_path.joinpath("chromedriver.exe")))
        driver = webdriver.Chrome(executable_path= bingosync_path.joinpath("chromedriver.exe"), options=opt)
        driver.set_script_timeout(1800)
        return driver
@@ -119,38 +111,27 @@ def initialize_driver():
        return None
 
 #TODO videos
-def generate_OBS_images(background_image):
+def generate_OBS_images(background_image, colors):
     """Makes copies of the colours players will use as color1, color2, etc so that OBS sets it up automatically. Also layout images"""
     try:
         for ind,color in enumerate(colors):
             obs_images_paths.append(path := obs_path.joinpath(f"color{ind+1}.png"))
             shutil.copy(bingosync_path.joinpath("Colours",f"{color}.png"), path)
 
-            #Copy the background
-        obs_images_paths.append(path := obs_path.joinpath(f"bg.png"))
-        shutil.copy(obs_path.joinpath("Backgrounds", "Pictures", f"{background_image}.png"), path)
+        #Copy the background
+        shutil.copy(obs_path.joinpath("Backgrounds", "Pictures", f"{background_image}.png"), path := obs_path.joinpath(f"bg.png"))
+        obs_images_paths.append(path)
         #Copy the layout 
-        obs_images_paths.append(path := obs_path.joinpath(f"outlinecolor.png"))
-        shutil.copy(obs_path.joinpath("Colours", f"{background_image}.png"), path)
+        shutil.copy(obs_path.joinpath("Colours"), path := obs_path.joinpath(f"outlinecolor.png"))
+        obs_images_paths.append(path)
         return True
     except FileNotFoundError as e:
-        print("A file wasn't found. The exception text is below.")
-        print(e)
-        print("Note that the listener is still running")
+        print(">>  A file wasn't found, probably the OBS background image.")
         return False
 
 def delete_copies():
     for path in obs_images_paths:
         path.unlink()
-
-
-
-
-def ctrlC_handler(signum, frame):
-    print("\n >> Ending driver")
-    print("Note that the image copies made won't be deleted")
-    driver.quit()
-    exit(-1)
 
 
 def attempt_login(driver,url,pw):
@@ -178,32 +159,41 @@ def attempt_login(driver,url,pw):
 
 
 
-
-
-
 def Main():
     # -------------------------------------------------------------------------------------------------------------------- #
     # start script
 
 
-    #This is terrible but I'm too lazy to refactor oddo's code to not use everything global. Maybe eventually.
-    global colors;
-    global scores;
-    global track_lines;
-
     colors = [color.lower() for color in sys.argv[1:]]
 
+    scores = []
 
-    if not colors or len(colors) > 10:
-       print ("Please, call the program with one to ten bingosync colors as parameters (For example: \"listener.py red blue\")")
-       exit(-1)
+    if len(colors) > 10:
+        print ("Please, call the program with up to ten bingosync colors as parameters (For example: \"BingoTracker.py red blue\")")
+        exit(-1)
+
+    if len(colors) == 0:
+        print("No arguments were provided. Entering OBS only mode")
+
 
     for color in colors:
-       scores.append("0")
+        if color not in ["orange", "red", "blue", "green", "purple", "navy", "teal", "brown", "pink", "yellow"]:
+           print(f"{color} is not a valid bingosync color. Please, call the script with valid colors")
+           exit(-1)
+
+        scores.append("0")
+
 
     #OBS input section
-    bg_image = input(">> Please introduce the name of the image you wish to use as OBS background: ")
-    track_lines = input(">> Is the row/line counter relevant to the score? [Y/N]: ").lower() == "y"
+    bg_image = input(">>  Please introduce the name of the image you wish to use as OBS background: ")
+    if len(colors) == 0:
+        if generate_OBS_images(bg_image, colors):
+            print(">>  OBS layout was created.")
+        print ( ">>  Exiting...")
+        exit(-1)
+
+    
+    track_lines = input(">>  Is the row/line counter relevant to the score? [Y/N]: ").lower() == "y"
     # input room data
     room_nick   = "BingoTracker"
     room_url    = input(">>  Input room URL: ")
@@ -211,32 +201,34 @@ def Main():
 
     driver = initialize_driver()
     if driver == None:
-       exit(-1)
+        exit(-1)
 
-    #set up for exiting the driver in case of CTRL+C interrupt
-    signal.signal(signal.SIGINT, ctrlC_handler)
 
     if not attempt_login(driver,room_url, room_pw):
         exit(-1)
    
     # feedback
     for ind,color in enumerate(colors):
-       print(f">>  P{ind + 1} -> " + color)
+        print(f">>  P{ind + 1} -> " + color)
+
+
+    if not generate_OBS_images(bg_image, colors):
+        print (">>  Note that the bingosync listener is still running")
 
     print(">>  Close browser to stop")
 
-    # update scores with a full read (in case of tracker disconnect)
-    full_read(len(colors))
+        # update scores with a full read (in case of tracker disconnect)
+    full_read(driver, scores, colors, track_lines)
 
-    generate_OBS_images(bg_image)
+
 
     while True:
         try:
             # waits for event
             driver.execute_async_script(js_script)
-            print("   * Event occurred")
+            print("    * Event occurred")
             # checks if bingosync scores were updated, if so write new scores to .txt
-            full_read(len(colors))
+            full_read(driver, scores, colors, track_lines)
         except (NoSuchWindowException, TimeoutException, WebDriverException) as e:
             driver.quit()
             break
