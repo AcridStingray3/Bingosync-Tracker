@@ -2,7 +2,7 @@
 # also standarises OBS layout creation process
 # takes 1-10 arguments: player1_color, player2_color...
 
-import time, sys, shutil
+import time, sys, shutil, os
 import signal
 from pathlib import Path
 from selenium import webdriver
@@ -122,7 +122,7 @@ def generate_OBS_images(background_image, colors):
         shutil.copy(obs_path.joinpath("Backgrounds", "Pictures", f"{background_image}.png"), path := obs_path.joinpath(f"bg.png"))
         obs_images_paths.append(path)
         #Copy the layout 
-        shutil.copy(obs_path.joinpath("Colours"), path := obs_path.joinpath(f"outlinecolor.png"))
+        shutil.copy(obs_path.joinpath("Colours", f"{background_image}.png"), path := obs_path.joinpath(f"outlinecolor.png"))
         obs_images_paths.append(path)
         return True
     except FileNotFoundError as e:
@@ -170,7 +170,7 @@ def Main():
 
     if len(colors) > 10:
         print ("Please, call the program with up to ten bingosync colors as parameters (For example: \"BingoTracker.py red blue\")")
-        exit(-1)
+        os.exit(-1)
 
     if len(colors) == 0:
         print("No arguments were provided. Entering OBS only mode")
@@ -179,7 +179,7 @@ def Main():
     for color in colors:
         if color not in ["orange", "red", "blue", "green", "purple", "navy", "teal", "brown", "pink", "yellow"]:
            print(f"{color} is not a valid bingosync color. Please, call the script with valid colors")
-           exit(-1)
+           os.exit(-1)
 
         scores.append("0")
 
@@ -190,7 +190,7 @@ def Main():
         if generate_OBS_images(bg_image, colors):
             print(">>  OBS layout was created.")
         print ( ">>  Exiting...")
-        exit(-1)
+        os.exit(-1)
 
     
     track_lines = input(">>  Is the row/line counter relevant to the score? [Y/N]: ").lower() == "y"
@@ -201,11 +201,11 @@ def Main():
 
     driver = initialize_driver()
     if driver == None:
-        exit(-1)
+        os.exit(-1)
 
 
     if not attempt_login(driver,room_url, room_pw):
-        exit(-1)
+        os.exit(-1)
    
     # feedback
     for ind,color in enumerate(colors):
@@ -234,7 +234,7 @@ def Main():
             break
 
 
-    # exit
+    # os.exit
     delete_copies()
 
     print(">>  Listener terminated")
