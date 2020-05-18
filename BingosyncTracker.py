@@ -20,10 +20,6 @@ js_script = """// callback function argument
                 })
             """
 
-#List with the colours that are being used currently
-
-#List with current scores
-
 #Paths.
 executing_path = Path.cwd()
 obs_path = executing_path.joinpath("OBS")
