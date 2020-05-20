@@ -2,12 +2,18 @@
 # also standardises OBS layout creation process
 # takes 1-10 arguments: player1_colour, player2_colour...
 
+
 import time, sys, shutil, os, string
+import tkinter as tk
+import elevate
+from tkinter import W, E, Label, Radiobutton, Entry, Checkbutton, Button, Grid, IntVar, BooleanVar, StringVar
 from pathlib import *
 import signal
 from selenium import webdriver
 from selenium.common.exceptions import *
 from selenium.webdriver.common.keys import Keys
+
+elevate.elevate()
 
 js_script = """// callback function argument
                 var done = arguments[0];
@@ -197,69 +203,48 @@ def attempt_login(driver,url,pw):
 
 
 
-def Main():
+def Main(colours, track_lines, room_url, room_pw, bg_type, bg_name):
+
     # -------------------------------------------------------------------------------------------------------------------- #
     # start script
 
-
-    colours = [colour.lower() for colour in sys.argv[1:]]
-
     scores = []
 
-    if len(colours) > 10:
-        print ("Please, call the program with up to ten bingosync colours as parameters (For example: \"BingoTracker.py red blue\")")
-        os.exit(-1)
-
-    if len(colours) == 0:
-        print("No arguments were provided. Entering OBS only mode")
-
-
-    for colour in colours:
-        if colour not in ["orange", "red", "blue", "green", "purple", "navy", "teal", "brown", "pink", "yellow"]:
-           print(f"{colour} is not a valid bingosync colour. Please, call the script with valid colours")
-           os.exit(-1)
-
-        scores.append("0")
+    for colour in colours:        
+        scores.append("99") #append an impossible score so that the values are updated on first connection
 
 
     #OBS input section
-    bg_type = request_valid_input(">>  Which background format would you like to use?", ["Video", "Image"])
-    if len(bg_type) == 0:
+    if bg_type == "None": #No background
         print(">>  Note that the bingosync listener is still running")
     else:
         if bg_type == "Video":
             fmt = "mkv"
             delfmt = "png"
+
         if bg_type == "Image":
             fmt = "png"
             delfmt = "mkv"
-        bg_path = obs_path.joinpath("Backgrounds", f"{bg_type}s")
-        bg_choices = [os.path.splitext(os.path.split(bg)[1])[0] for bg in os.scandir(bg_path)]
-        bg_media = request_valid_input(f">>  Which background {bg_type.lower()} would you like to use?", bg_choices)
-        if len(bg_media) == 0:
+
+        if len(bg_name) == 0:
             print(">>  Note that the bingosync listener is still running")
         else:
             delete_bg(obs_path)
-            if generate_OBS_media(bg_media, bg_type, fmt, colours):
+            if generate_OBS_media(string.capwords(bg_name), bg_type, fmt, colours):
                 print(">>  OBS layout was created.")
-            if len(colours) == 0:
-                print(">>  Exiting...")
-                os.exit(-1)
 
-    
-    track_lines = input(">>  Is the row/line counter relevant to the score? [Y/N]: ").lower() == "y"
-    # input room data
-    room_nick   = "BingoTracker"
-    room_url    = input(">>  Input room URL: ")
-    room_pw     = input(">>  Input password: ")
+
+    if room_url == "":
+        return;
+
 
     driver = initialize_driver()
     if driver == None:
-        os.exit(-1)
+        sys.exit(-1)
 
 
     if not attempt_login(driver,room_url, room_pw):
-        os.exit(-1)
+        return;
 
 
     # feedback
@@ -286,7 +271,6 @@ def Main():
             break
 
 
-    # os.exit
     delete_copies()
 
     print(">>  Listener terminated")
@@ -294,6 +278,94 @@ def Main():
 
 
 
+class DragDropListbox(tk.Listbox):
+    """ A Tkinter listbox with drag'n'drop reordering of entries. """
+    def __init__(self, master, **kw):
+        kw['selectmode'] = tk.SINGLE
+        tk.Listbox.__init__(self, master, kw)
+        self.bind('<Button-1>', self.setCurrent)
+        self.bind('<B1-Motion>', self.shiftSelection)
+        self.curIndex = None
+
+    def setCurrent(self, event):
+        self.curIndex = self.nearest(event.y)
+
+    def shiftSelection(self, event):
+        i = self.nearest(event.y)
+        if i < self.curIndex:
+            x = self.get(i)
+            self.delete(i)
+            self.insert(i+1, x)
+            self.curIndex = i
+        elif i > self.curIndex:
+            x = self.get(i)
+            self.delete(i)
+            self.insert(i-1, x)
+            self.curIndex = i
 
 
-Main()
+top = tk.Tk()
+
+videoOrImage = StringVar()
+videoOrImage.set("Image")
+
+rowLineCounter = BooleanVar()
+
+bingoImgPath = StringVar()
+bingoImgPath.set("Sheo")
+
+bingoURL = StringVar()
+bingoPW = StringVar()
+
+Label(top, text="Colours (drag to reorder p1 in 1st slot, p2 in 2nd slot etc)").grid( sticky=W,row = 0, column = 0, columnspan = 3, padx=10, pady=0)
+
+pColours = DragDropListbox(top, selectmode=tk.BROWSE)
+pColours.grid( sticky=W+E,row = 1, column = 0, columnspan = 3, padx=10, pady=0)
+x = 0
+for item in ["Orange", "Red", "Blue", "Green", "Purple", "Navy", "Teal", "Brown", "Pink", "Yellow"]:
+    pColours.insert(x, item)
+    x = x + 1
+pColours
+
+
+Label(top, text="").grid( sticky=W,row = 10, column = 0, columnspan = 3, padx=0, pady=0)
+
+Label(top, text="Which background format would you like to use?").grid( sticky=W,row = 11, column = 0, columnspan = 3, padx=10, pady=0)
+
+Radiobutton(top, text="Video", variable=videoOrImage, value="Video").grid( sticky=W,row = 12, column = 0, columnspan = 3, padx=10, pady=0)
+Radiobutton(top, text="Image", variable=videoOrImage, value="Image").grid( sticky=W,row = 12, column = 1, columnspan = 3, padx=10, pady=0)
+Radiobutton(top, text="None", variable=videoOrImage, value="None").grid( sticky=W,row = 12, column = 2, columnspan = 3, padx=10, pady=0)
+
+
+Label(top, text="Name of background file").grid( sticky=W,row = 15, column = 0, columnspan = 3, padx=10, pady=0)
+Entry(top, textvariable=bingoImgPath).grid( sticky=W+E,row = 16, column = 0, columnspan = 3, padx=10, pady=0)
+
+Checkbutton(top, text="Check this if the row/line counter is relevant to the score", variable=rowLineCounter).grid( sticky=W,row = 20, column = 0, columnspan = 3, padx=10, pady=10)
+
+Label(top, text="Bingosync room URL (Leave blank for no bingo)").grid( sticky=W,row = 30, column = 0, columnspan = 3, padx=10, pady=0)
+Entry(top, textvariable=bingoURL).grid( sticky=W+E,row = 31, column = 0, columnspan = 3, padx=10, pady=0)
+
+Label(top, text="Bingosync room password (Leave blank for no bingo)").grid( sticky=W,row = 32, column = 0, columnspan = 3, padx=10, pady=0)
+Entry(top, textvariable=bingoPW).grid( sticky=W+E,row = 33, column = 0, columnspan = 3, padx=10, pady=0)
+
+def callback():
+
+    colours = []
+    for ind in range(0, pColours.size()):
+        colours.append(pColours.get(ind).lower())
+
+    Main(colours, rowLineCounter.get(), bingoURL.get(), bingoPW.get(), videoOrImage.get(), bingoImgPath.get())
+
+def finish():
+    sys.exit(0)
+
+b = Button(top, text="Start Tracker", bg="#cccccc", command=callback).grid( sticky=W+E,row = 40, column = 0, columnspan = 3, padx=10, pady=(8,0))
+c = Button(top, text="Exit", bg="#cccccc", command=finish).grid( sticky=W+E,row = 41, column = 0, columnspan = 3, padx=10, pady=2)
+
+for x in range(3):
+    Grid.columnconfigure(top,x,weight=1)
+for y in range(15):
+    Grid.rowconfigure(top,y,weight=1)
+
+top.title("BingoTracker")
+top.mainloop()   
