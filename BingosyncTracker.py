@@ -183,13 +183,14 @@ def attempt_login(driver,url,pw):
 
     print(">>  Attempting login")
     driver.get(url)
+    time.sleep(2)
     driver.find_element_by_id("id_player_name").send_keys("BingoTracker")     # input nickname
     driver.find_element_by_id("id_passphrase").send_keys(pw)                  # input password
     driver.find_element_by_id("id_is_spectator").send_keys(Keys.SPACE)        # join as spectator
 
     # attempt login
     driver.find_element_by_class_name("form-control").submit()                # submit login
-    time.sleep(3)                                                             # firefox fails here if you don't wait a bit
+    time.sleep(10)                                                             # firefox fails here if you don't wait a bit
     try:
         # check if colour picker is present
         driver.find_element_by_xpath("/html/body/div[1]/div[2]/div[1]/div/div[1]")
